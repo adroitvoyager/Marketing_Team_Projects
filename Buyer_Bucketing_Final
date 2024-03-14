@@ -1,0 +1,154 @@
+from __future__ import with_statement
+from AnalyticsClient import AnalyticsClient
+import sys
+import json
+
+class Config:
+
+    CLIENTID = "1000.DQ32DWGNGDO7CV0V1S1CB3QFRAI72K";
+    CLIENTSECRET = "92dfbbbe8c2743295e9331286d90da900375b2b66c";
+    REFRESHTOKEN = "1000.0cd324af15278b51d3fc85ed80ca5c04.7f4492eb09c6ae494a728cd9213b53ce";
+
+    ORGID = "60006357703";
+    VIEWID="174857000085847103";
+    WORKSPACEID = "174857000004732522";
+
+class sample:
+
+    ac = AnalyticsClient(Config.CLIENTID, Config.CLIENTSECRET, Config.REFRESHTOKEN)
+
+    def initiate_bulk_export(self, ac):
+        response_format = "csv"
+        bulk = ac.get_bulk_instance(Config.ORGID, Config.WORKSPACEID)
+        result = bulk.initiate_bulk_export(Config.VIEWID, response_format) 
+        print(result)
+
+try:
+    obj = sample()
+    obj.initiate_bulk_export(obj.ac);
+
+except Exception as e:
+    print(str(e)) 
+
+class sample:
+
+    ac = AnalyticsClient(Config.CLIENTID, Config.CLIENTSECRET, Config.REFRESHTOKEN)
+
+    def get_export_job_details(self, ac):
+        job_id = "174857000088151216"
+        bulk = ac.get_bulk_instance(Config.ORGID, Config.WORKSPACEID)
+        result = bulk.get_export_job_details(job_id)       
+        print(result)
+
+try:
+    obj = sample()
+    obj.get_export_job_details(obj.ac);
+
+except Exception as e:
+    print(str(e))
+
+class sample:
+
+    ac = AnalyticsClient(Config.CLIENTID, Config.CLIENTSECRET, Config.REFRESHTOKEN)
+
+    def export_bulk_data(self, ac):
+        job_id = "174857000088149268"
+        file_path = "Buyer_Bucketing_Data.csv"
+        bulk = ac.get_bulk_instance(Config.ORGID, Config.WORKSPACEID)
+        bulk.export_bulk_data(job_id, file_path)
+
+try:
+    obj = sample()
+    obj.export_bulk_data(obj.ac);
+
+except Exception as e:
+    print(str(e))
+
+import pandas as pd
+import numpy as np 
+from scipy import stats 
+from sklearn.preprocessing import StandardScaler 
+
+data = pd.read_csv(r"C:\Users\Admin\AppData\Local\Temp\cc830bec-c025-4ec9-8199-1a34139f9568_ZohoAnalyticsPythonLib_v2.zip.568\Zoho\ZohoAnalyticsPythonClient\Buyer_Bucketing_Data.csv") 
+data.head()
+
+
+df = pd.DataFrame(data.groupby('SellerId')['MaxPotential'].skew())
+df
+
+df1 = pd.DataFrame(data.groupby('SellerId')['MaxPotential'].apply(pd.DataFrame.kurtosis))
+df1
+
+df_final = pd.merge(df, df1, on='SellerId',how='left')
+df_final
+
+df_final=df_final.rename(columns={'MaxPotential_x': 'Skewness', 'MaxPotential_y': 'Kurtosis'})
+df_final.head(10)
+
+
+import matplotlib.pyplot as plt 
+plt.style.use('seaborn')
+plt.hist(data[data['SellerId']==1490339690]['MaxPotential'], bins=250, color='skyblue', edgecolor='black')
+plt.show()
+
+plt.style.use('seaborn')
+plt.hist(df_final['Skewness'], bins=30, color='red', edgecolor='black', label='Skewness')
+#plt.hist(df_final['Kurtosis'], bins=100, color='red', edgecolor='black', label='Kurtosis')
+plt.legend()
+plt.show()
+
+data = pd.merge(data, df_final, on='SellerId', how='left')
+data
+
+from scipy import stats
+from sklearn.preprocessing import StandardScaler
+
+def seller_group_transfrom(data):
+    if data['MaxPotential'].nunique() == 1:
+        data['Group'] = 'Constant'
+    else:
+        try:
+            #Apply Box-Cox transformation
+            transformed_data, lambda_value = stats.boxcox(data['MaxPotential'])
+            data['Transformed MaxPotential'] = transformed_data_full = stats.boxcox(data['MaxPotential'], lmbda=lambda_value)
+            #Conditions for grouping
+            conditions = [((data['Transformed MaxPotential'] < (data['Transformed MaxPotential'].median()))), ##Low
+            (((data['Transformed MaxPotential'] >= (data['Transformed MaxPotential'].median())) & 
+            (data['Transformed MaxPotential'] < (data['Transformed MaxPotential'].median()+(1.25*(data['Transformed MaxPotential'].std())))) & (data['Skewness']<3.0)) | 
+            ((data['Transformed MaxPotential'] >= (data['Transformed MaxPotential'].median())) & 
+            (data['Transformed MaxPotential'] < (data['Transformed MaxPotential'].median()+(0.9*(data['Transformed MaxPotential'].std())))) & (data['Skewness']>=3.0))
+            ),
+            (((data['Transformed MaxPotential'] >= (data['Transformed MaxPotential'].median()+(1.25*(data['Transformed MaxPotential'].std())))) & 
+            (data['Transformed MaxPotential'] < (data['Transformed MaxPotential'].median()+(2.125*(data['Transformed MaxPotential'].std())))) & (data['Skewness']<3.0)) |
+            ((data['Transformed MaxPotential'] >= (data['Transformed MaxPotential'].median()+(0.9*(data['Transformed MaxPotential'].std())))) & 
+            (data['Transformed MaxPotential'] < (data['Transformed MaxPotential'].median()+(1.75*(data['Transformed MaxPotential'].std())))) & (data['Skewness']>=3.0))
+            ),
+            (((data['Transformed MaxPotential'] >= (data['Transformed MaxPotential'].median()+(2.125*(data['Transformed MaxPotential'].std())))) & 
+            (data['Skewness']<3.0)) | 
+            ((data['Transformed MaxPotential'] >= (data['Transformed MaxPotential'].median()+(1.75*(data['Transformed MaxPotential'].std())))) & 
+            (data['Skewness']>=3.0))
+            )]
+            # Define labels for groups
+            values = ['Low','Medium','High','Outlier']
+
+            # Adding Group Label to the DataFrame
+            data['Group'] = np.select(conditions, values, default='Other')
+        except ValueError:
+            # If Box-Cox fails (e.g., due to negative values), apply alternative transformation
+            scaler = StandardScaler()
+            seller_data['Transformed MaxPotential'] = scaler.fit_transform(seller_data[['MaxPotential']])[:, 0]
+            # Group based on the scaled data (consider adapting conditions if needed)
+    return data
+
+#Group Data by seller and apply transformation
+data_grouped = data.groupby('SellerId').apply(seller_group_transfrom)
+data_grouped.to_csv('Buyer_Bucketing_Final.csv', index=False)
+
+
+
+
+
+
+
+
+
